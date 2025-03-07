@@ -459,7 +459,7 @@ def visualize_drawdowns(cumulative_returns, drawdown_info):
     plt.tight_layout()
     return fig
 
-def comprehensive_stock_analysis(ticker_symbol, file_path,
+def comprehensive_stock_analysis(ticker_symbol, FILE_URL,
                                  use_rsi=False, rsi_threshold=50,
                                  use_ma=False, ma_long=50, ma_short=200,
                                  use_macd=False,
@@ -472,7 +472,7 @@ def comprehensive_stock_analysis(ticker_symbol, file_path,
     Perform comprehensive analysis for the given ticker.
     Extra filters are applied if enabled.
     """
-    data = pd.read_csv(file_path, parse_dates=['DATE'], low_memory=False)
+    data = pd.read_csv(FILE_URL, parse_dates=['DATE'], low_memory=False)
     ticker_data = data[data['SYMBOL'] == ticker_symbol].set_index('DATE')
     ticker_data.sort_index(ascending=True, inplace=True)
     
