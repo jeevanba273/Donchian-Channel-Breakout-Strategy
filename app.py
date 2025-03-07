@@ -81,13 +81,13 @@ def calculate_additional_indicators(df,
     df['Stoch_K'] = 100 * (df['CLOSE_PRICE'] - low_min) / (high_max - low_min)
     df['Stoch_D'] = df['Stoch_K'].rolling(window=stoch_smooth).mean()
     
-    # OBV
+    # OBV (if VOLUME exists)
     if 'VOLUME' in df.columns:
         df['OBV'] = (np.sign(df['CLOSE_PRICE'].diff()) * df['VOLUME']).fillna(0).cumsum()
     else:
         df['OBV'] = np.nan
     
-    # ADX
+    # ADX Calculation
     df['H-L'] = df['HIGH_PRICE'] - df['LOW_PRICE']
     df['H-PC'] = abs(df['HIGH_PRICE'] - df['CLOSE_PRICE'].shift())
     df['L-PC'] = abs(df['LOW_PRICE'] - df['CLOSE_PRICE'].shift())
@@ -117,7 +117,7 @@ def generate_signals(df,
                      use_stoch=False):
     """
     Generate trade signals based on Donchian Channel breakout.
-    Then, cancel signals that don't meet extra filters if enabled.
+    Extra filters cancel signals if conditions are not met.
     """
     df['signal'] = 0
     # Base signal: Donchian Channel Breakout
@@ -127,26 +127,21 @@ def generate_signals(df,
            (df['CLOSE_PRICE'].shift(1) >= df['lower_channel'].shift(1)), 'signal'] = -1
 
     if use_rsi:
-        # For a long trade, require RSI > threshold; for short, require RSI < threshold.
         df.loc[(df['signal'] == 1) & (df['RSI'].shift(1) <= rsi_threshold), 'signal'] = 0
         df.loc[(df['signal'] == -1) & (df['RSI'].shift(1) >= rsi_threshold), 'signal'] = 0
 
     if use_ma:
-        # For long trades, require price > MA_long; for short trades, price < MA_short.
         df.loc[(df['signal'] == 1) & (df['CLOSE_PRICE'].shift(1) <= df[f'MA{ma_long}'].shift(1)), 'signal'] = 0
         df.loc[(df['signal'] == -1) & (df['CLOSE_PRICE'].shift(1) >= df[f'MA{ma_short}'].shift(1)), 'signal'] = 0
 
     if use_macd:
-        # For long trades, require MACD > MACD_signal; for short, MACD < MACD_signal.
         df.loc[(df['signal'] == 1) & (df['MACD'].shift(1) <= df['MACD_signal'].shift(1)), 'signal'] = 0
         df.loc[(df['signal'] == -1) & (df['MACD'].shift(1) >= df['MACD_signal'].shift(1)), 'signal'] = 0
 
     if use_adx:
-        # Only take trades if ADX > threshold.
         df.loc[(df['signal'] != 0) & (df['ADX'].shift(1) < adx_threshold), 'signal'] = 0
 
     if use_stoch:
-        # For long trades, require Stoch_K > Stoch_D; for short, require Stoch_K < Stoch_D.
         df.loc[(df['signal'] == 1) & (df['Stoch_K'].shift(1) <= df['Stoch_D'].shift(1)), 'signal'] = 0
         df.loc[(df['signal'] == -1) & (df['Stoch_K'].shift(1) >= df['Stoch_D'].shift(1)), 'signal'] = 0
 
@@ -295,10 +290,10 @@ def analyze_returns(cumulative_returns, strategy_returns):
     print(f"t-statistic: {t_statistic:.4f}")
     print(f"p-value: {p_value:.4f}")
     
-    monthly_returns = daily_returns.resample('ME').sum()
+    monthly_returns = daily_returns.resample('M').sum()
     if isinstance(monthly_returns.index, pd.PeriodIndex):
         monthly_returns.index = monthly_returns.index.to_timestamp()
-    yearly_returns = daily_returns.resample('YE').sum()
+    yearly_returns = daily_returns.resample('Y').sum()
     
     print("\nMonthly Returns:")
     print(monthly_returns.describe())
@@ -313,7 +308,7 @@ def analyze_returns(cumulative_returns, strategy_returns):
     plt.xlabel('Daily Returns')
     plt.ylabel('Frequency')
     
-    # Monthly Returns (display only selected tick labels)
+    # Monthly Returns (display selected tick labels)
     ax2 = plt.subplot(2, 2, 2)
     monthly_returns.plot(kind='bar', ax=ax2)
     ax2.set_title('Monthly Returns')
@@ -490,7 +485,7 @@ def comprehensive_stock_analysis(ticker_symbol, file_path,
                                                   macd_fast=macd_fast, macd_slow=macd_slow, macd_signal_period=macd_signal_period,
                                                   stoch_period=stoch_period, stoch_smooth=stoch_smooth,
                                                   adx_period=adx_period)
-    # Generate signals with extra filters
+    # Generate signals with extra filters as specified
     ticker_data = generate_signals(ticker_data, 
                                    use_rsi=use_rsi, rsi_threshold=rsi_threshold,
                                    use_ma=use_ma, ma_long=ma_long, ma_short=ma_short,
@@ -533,7 +528,7 @@ def comprehensive_stock_analysis(ticker_symbol, file_path,
     plt.tight_layout()
     fig_main_out = fig_main  # Capture main figure
     
-    # Returns Analysis: figure and metrics
+    # Returns Analysis: capture figure and metrics dictionary
     returns_fig, returns_metrics = analyze_returns(cumulative_returns, ticker_data['strategy_returns'])
     returns_analysis_text = capture_print_output(analyze_returns, cumulative_returns, ticker_data['strategy_returns'])
     
@@ -564,11 +559,25 @@ def comprehensive_stock_analysis(ticker_symbol, file_path,
 # =============================================================================
 # Main Streamlit App Code
 # =============================================================================
-st.set_page_config(page_title="Donchian Channel Breakout Strategy", layout="wide")
-st.title("Donchian Channel Breakout Strategy with Detailed Drawdown & Advanced Indicators")
+st.set_page_config(page_title="Donchian Channel Breakout: Detailed Drawdown & Advanced Indicator Suite", layout="wide")
+st.title("Donchian Channel Breakout: Detailed Drawdown & Advanced Indicator Suite")
 
 # Sidebar: Ticker and Indicator Filter Inputs
-FILE_PATH = 'data/final_adjusted_stock_data.csv'
+
+# Add creator information at the top of the sidebar
+st.sidebar.write("`Created by:`")
+linkedin_url = "https://www.linkedin.com/in/jeevanba273/"
+st.sidebar.markdown(
+    f'<a href="{linkedin_url}" target="_blank" style="text-decoration: none; color: white;">'
+    f'<img src="https://cdn-icons-png.flaticon.com/512/174/174857.png" width="25" height="25" style="vertical-align: middle; margin-right: 10px;">'
+    f'`JEEVAN B A`</a>',
+    unsafe_allow_html=True
+)
+
+# Instead of using a local file path, use your Google Drive link.
+file_id = "1FHFthKW-L1hIY0AnrvZnWro-yuf0tUnW"  # Replace with your actual file ID
+FILE_URL = f"https://drive.google.com/uc?export=download&id={file_id}"
+
 ticker_symbol = st.sidebar.text_input("Enter Ticker Symbol", value="NIFTY 50")
 
 st.sidebar.markdown("### RSI Filter")
@@ -609,7 +618,7 @@ if st.sidebar.button("Run Analysis"):
     with st.spinner("Performing analysis..."):
         results = comprehensive_stock_analysis(
             ticker_symbol, 
-            FILE_PATH, 
+            FILE_URL, 
             use_rsi=use_rsi_filter, 
             rsi_threshold=rsi_threshold, 
             use_ma=use_ma_filter, 
@@ -624,7 +633,7 @@ if st.sidebar.button("Run Analysis"):
             adx_period=adx_period
         )
     
-    # Create tabs for output (without the "Indicators" tab)
+    # Create tabs for output (Overview, Ticker Data, Trades Data, Returns Analysis, Drawdown Analysis, Performance Metrics)
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "Overview", 
         "Ticker Data", 
@@ -648,6 +657,9 @@ if st.sidebar.button("Run Analysis"):
         st.header("Trades Data")
         trades_df = pd.DataFrame(results['trades'])
         if not trades_df.empty:
+            # Multiply trade_return column by 100 for percentage display
+            if 'trade_return' in trades_df.columns:
+                trades_df['trade_return'] = trades_df['trade_return'] * 100
             st.dataframe(trades_df)
         else:
             st.info("No trades recorded.")
@@ -658,6 +670,8 @@ if st.sidebar.button("Run Analysis"):
         st.pyplot(results['fig_returns'])
         st.subheader("Returns Metrics Table")
         returns_df = pd.DataFrame.from_dict(results['returns_metrics'], orient="index", columns=["Value"])
+        # Convert values to string to avoid Arrow serialization errors
+        returns_df["Value"] = returns_df["Value"].astype(str)
         st.table(returns_df)
     
     with tab5:
@@ -668,14 +682,15 @@ if st.sidebar.button("Run Analysis"):
         st.text(results['drawdown_analysis_text'])
         dd_df = pd.DataFrame(results['drawdown_info'])
         if not dd_df.empty:
-            # Multiply drawdown_percentage by 100 for display
-            dd_df['drawdown_percentage'] = dd_df['drawdown_percentage'] * 100
+            # Multiply drawdown_percentage by 100 for display and convert to string
+            dd_df['drawdown_percentage'] = (dd_df['drawdown_percentage'] * 100).astype(str)
             st.subheader("Drawdown Info Table")
             st.dataframe(dd_df)
     
     with tab6:
         st.header("Performance Metrics")
         perf_df = pd.DataFrame.from_dict(results['performance_metrics'], orient="index", columns=["Value"])
+        perf_df["Value"] = perf_df["Value"].astype(str)
         st.table(perf_df)
         st.subheader("Raw Performance Metrics Text")
         st.text(results['perf_metrics_text'])
