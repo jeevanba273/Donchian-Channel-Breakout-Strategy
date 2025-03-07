@@ -6,6 +6,7 @@ from scipy import stats
 import matplotlib.dates as mdates  # For improved date formatting
 import io
 import contextlib
+import requests  # New import for fetching file from URL
 
 # =============================================================================
 # Helper to capture printed output from functions
@@ -459,7 +460,7 @@ def visualize_drawdowns(cumulative_returns, drawdown_info):
     plt.tight_layout()
     return fig
 
-def comprehensive_stock_analysis(ticker_symbol, FILE_URL,
+def comprehensive_stock_analysis(ticker_symbol, file_url,
                                  use_rsi=False, rsi_threshold=50,
                                  use_ma=False, ma_long=50, ma_short=200,
                                  use_macd=False,
@@ -472,7 +473,15 @@ def comprehensive_stock_analysis(ticker_symbol, FILE_URL,
     Perform comprehensive analysis for the given ticker.
     Extra filters are applied if enabled.
     """
-    data = pd.read_csv(FILE_URL, parse_dates=['DATE'], low_memory=False)
+    try:
+        response = requests.get(file_url)
+        response.raise_for_status()
+        csv_data = io.StringIO(response.content.decode('utf-8'))
+        data = pd.read_csv(csv_data, parse_dates=['DATE'], low_memory=False)
+    except Exception as e:
+        st.error("Error loading data from Google Drive: " + str(e))
+        return {}
+    
     ticker_data = data[data['SYMBOL'] == ticker_symbol].set_index('DATE')
     ticker_data.sort_index(ascending=True, inplace=True)
     
@@ -574,8 +583,8 @@ st.sidebar.markdown(
     unsafe_allow_html=True
 )
 
-# Instead of using a local file path, use your Google Drive link.
-file_id = "1FHFthKW-L1hIY0AnrvZnWro-yuf0tUnW"  # Replace with your actual file ID
+# Use Google Drive for the data file
+file_id = "1FHFthKW-L1hIY0AnrvZnWro-yuf0tUnW"  # Replace with your actual Google Drive file ID
 FILE_URL = f"https://drive.google.com/uc?export=download&id={file_id}"
 
 ticker_symbol = st.sidebar.text_input("Enter Ticker Symbol", value="NIFTY 50")
