@@ -3,23 +3,56 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import stats
-import matplotlib.dates as mdates  # For improved date formatting
 import io
 import contextlib
-import requests  # New import for fetching file from URL
+import requests
+import re
 
-# =============================================================================
+# -----------------------------------------------------------------------------
+# Google Drive Download Helpers
+# -----------------------------------------------------------------------------
+def get_confirm_token(response):
+    """Extracts confirm token from cookies, if present."""
+    for key, value in response.cookies.items():
+        if key.startswith('download_warning'):
+            return value
+    return None
+
+def download_csv_from_google_drive(file_id):
+    """
+    Downloads the file from Google Drive, handling the confirmation token if needed.
+    Returns the CSV content as a string.
+    """
+    URL = "https://docs.google.com/uc?export=download"
+    session = requests.Session()
+    response = session.get(URL, params={'id': file_id}, stream=True)
+    token = get_confirm_token(response)
+    if token:
+        params = {'id': file_id, 'confirm': token}
+        response = session.get(URL, params=params, stream=True)
+    return response.content.decode('utf-8')
+
+def get_file_id_from_url(file_url):
+    """
+    Extracts the file id from a Google Drive file URL.
+    """
+    match = re.search(r'id=([^&]+)', file_url)
+    if match:
+        return match.group(1)
+    return None
+
+# -----------------------------------------------------------------------------
 # Helper to capture printed output from functions
-# =============================================================================
+# -----------------------------------------------------------------------------
 def capture_print_output(func, *args, **kwargs):
     buffer = io.StringIO()
     with contextlib.redirect_stdout(buffer):
         func(*args, **kwargs)
     return buffer.getvalue()
 
-# =============================================================================
+# -----------------------------------------------------------------------------
 # Analysis Functions
-# =============================================================================
+# -----------------------------------------------------------------------------
 def calculate_donchian_channels(df, window=20):
     """Compute Donchian Channels."""
     df['upper_channel'] = df['HIGH_PRICE'].rolling(window=window, min_periods=1).max()
@@ -471,30 +504,33 @@ def comprehensive_stock_analysis(ticker_symbol, file_url,
                                  adx_period=14):
     """
     Perform comprehensive analysis for the given ticker.
-    Extra filters are applied if enabled.
     """
     try:
-        response = requests.get(file_url)
-        response.raise_for_status()
-        csv_data = io.StringIO(response.content.decode('utf-8'))
+        # Extract file ID from the URL
+        file_id = get_file_id_from_url(file_url)
+        if not file_id:
+            st.error("Could not extract file ID from the provided URL.")
+            return {}
+        csv_content = download_csv_from_google_drive(file_id)
+        csv_data = io.StringIO(csv_content)
+        # Read CSV with date parsing (assumes header contains "DATE")
         data = pd.read_csv(csv_data, parse_dates=['DATE'], low_memory=False)
     except Exception as e:
         st.error("Error loading data from Google Drive: " + str(e))
         return {}
     
+    # Filter data for the specified ticker symbol and set DATE as index
     ticker_data = data[data['SYMBOL'] == ticker_symbol].set_index('DATE')
     ticker_data.sort_index(ascending=True, inplace=True)
     
-    # Compute Donchian channels
+    # Compute Donchian channels and additional indicators
     ticker_data = calculate_donchian_channels(ticker_data, window=20)
-    # Compute additional indicators with user-specified parameters
     ma_periods = [ma_long, ma_short] if use_ma else [50, 200]
     ticker_data = calculate_additional_indicators(ticker_data, 
                                                   ma_periods=ma_periods,
                                                   macd_fast=macd_fast, macd_slow=macd_slow, macd_signal_period=macd_signal_period,
                                                   stoch_period=stoch_period, stoch_smooth=stoch_smooth,
                                                   adx_period=adx_period)
-    # Generate signals with extra filters as specified
     ticker_data = generate_signals(ticker_data, 
                                    use_rsi=use_rsi, rsi_threshold=rsi_threshold,
                                    use_ma=use_ma, ma_long=ma_long, ma_short=ma_short,
@@ -537,7 +573,7 @@ def comprehensive_stock_analysis(ticker_symbol, file_url,
     plt.tight_layout()
     fig_main_out = fig_main  # Capture main figure
     
-    # Returns Analysis: capture figure and metrics dictionary
+    # Additional Analyses
     returns_fig, returns_metrics = analyze_returns(cumulative_returns, ticker_data['strategy_returns'])
     returns_analysis_text = capture_print_output(analyze_returns, cumulative_returns, ticker_data['strategy_returns'])
     
@@ -565,19 +601,17 @@ def comprehensive_stock_analysis(ticker_symbol, file_url,
         'perf_metrics_text': perf_metrics_text
     }
 
-# =============================================================================
+# -----------------------------------------------------------------------------
 # Main Streamlit App Code
-# =============================================================================
+# -----------------------------------------------------------------------------
 st.set_page_config(page_title="Donchian Channel Breakout: Detailed Drawdown & Advanced Indicator Suite", layout="wide")
 st.title("Donchian Channel Breakout: Detailed Drawdown & Advanced Indicator Suite")
 
 # Sidebar: Ticker and Indicator Filter Inputs
-
-# Add creator information at the top of the sidebar
 st.sidebar.write("`Created by:`")
 linkedin_url = "https://www.linkedin.com/in/jeevanba273/"
 st.sidebar.markdown(
-    f'<a href="{linkedin_url}" target="_blank" style="text-decoration: none; color: white;">'
+    f'<a href="{linkedin_url}" target="_blank" style="text-decoration: none; color: black;">'
     f'<img src="https://cdn-icons-png.flaticon.com/512/174/174857.png" width="25" height="25" style="vertical-align: middle; margin-right: 10px;">'
     f'`JEEVAN B A`</a>',
     unsafe_allow_html=True
@@ -642,7 +676,7 @@ if st.sidebar.button("Run Analysis"):
             adx_period=adx_period
         )
     
-    # Create tabs for output (Overview, Ticker Data, Trades Data, Returns Analysis, Drawdown Analysis, Performance Metrics)
+    # Create tabs for output
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "Overview", 
         "Ticker Data", 
@@ -679,7 +713,6 @@ if st.sidebar.button("Run Analysis"):
         st.pyplot(results['fig_returns'])
         st.subheader("Returns Metrics Table")
         returns_df = pd.DataFrame.from_dict(results['returns_metrics'], orient="index", columns=["Value"])
-        # Convert values to string to avoid Arrow serialization errors
         returns_df["Value"] = returns_df["Value"].astype(str)
         st.table(returns_df)
     
@@ -691,7 +724,6 @@ if st.sidebar.button("Run Analysis"):
         st.text(results['drawdown_analysis_text'])
         dd_df = pd.DataFrame(results['drawdown_info'])
         if not dd_df.empty:
-            # Multiply drawdown_percentage by 100 for display and convert to string
             dd_df['drawdown_percentage'] = (dd_df['drawdown_percentage'] * 100).astype(str)
             st.subheader("Drawdown Info Table")
             st.dataframe(dd_df)
