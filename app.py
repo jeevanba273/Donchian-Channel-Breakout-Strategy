@@ -512,8 +512,19 @@ def comprehensive_stock_analysis(ticker_symbol, file_url,
             st.error("Could not extract file ID from the provided URL.")
             return {}
         csv_content = download_csv_from_google_drive(file_id)
+        # Debug: Check if content looks like HTML instead of CSV
+        if "<html" in csv_content.lower():
+            st.error("Downloaded content appears to be HTML, not CSV. Check your file sharing settings or file size.")
+            return {}
+        # Create a StringIO object from the CSV content
         csv_data = io.StringIO(csv_content)
-        # Read CSV with date parsing (assumes header contains "DATE")
+        # Read the header to verify the CSV includes the "DATE" column
+        header_line = csv_data.readline()
+        if "DATE" not in header_line:
+            st.error("Downloaded CSV header does not contain 'DATE'. Header found: " + header_line)
+            return {}
+        # Reset the pointer and read CSV with date parsing
+        csv_data.seek(0)
         data = pd.read_csv(csv_data, parse_dates=['DATE'], low_memory=False)
     except Exception as e:
         st.error("Error loading data from Google Drive: " + str(e))
@@ -611,7 +622,7 @@ st.title("Donchian Channel Breakout: Detailed Drawdown & Advanced Indicator Suit
 st.sidebar.write("`Created by:`")
 linkedin_url = "https://www.linkedin.com/in/jeevanba273/"
 st.sidebar.markdown(
-    f'<a href="{linkedin_url}" target="_blank" style="text-decoration: none; color: black;">'
+    f'<a href="{linkedin_url}" target="_blank" style="text-decoration: none; color: white;">'
     f'<img src="https://cdn-icons-png.flaticon.com/512/174/174857.png" width="25" height="25" style="vertical-align: middle; margin-right: 10px;">'
     f'`JEEVAN B A`</a>',
     unsafe_allow_html=True
@@ -700,7 +711,6 @@ if st.sidebar.button("Run Analysis"):
         st.header("Trades Data")
         trades_df = pd.DataFrame(results['trades'])
         if not trades_df.empty:
-            # Multiply trade_return column by 100 for percentage display
             if 'trade_return' in trades_df.columns:
                 trades_df['trade_return'] = trades_df['trade_return'] * 100
             st.dataframe(trades_df)
