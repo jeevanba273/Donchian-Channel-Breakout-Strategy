@@ -584,7 +584,7 @@ st.sidebar.markdown(
 )
 
 # Use Google Drive for the data file
-file_id = "1FHFthKW-L1hIY0AnrvZnWro-yuf0tUnW"  # Replace with your actual Google Drive file ID
+file_id = "1F63GUlODaf8Y9Sl80AHX5SIDlKqG1erY"  # Replace with your actual Google Drive file ID
 FILE_URL = f"https://drive.google.com/uc?export=download&id={file_id}"
 
 ticker_symbol = st.sidebar.text_input("Enter Ticker Symbol", value="NIFTY 50")
