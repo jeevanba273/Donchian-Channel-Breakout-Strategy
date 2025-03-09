@@ -3,58 +3,35 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import stats
-import io
 import contextlib
-import requests
-import re
 
 # -----------------------------------------------------------------------------
-# Google Drive Download Helpers
+# Helper Function: Load CSV from Local File Path with Caching
 # -----------------------------------------------------------------------------
-def get_confirm_token(response):
-    """Extracts confirm token from cookies, if present."""
-    for key, value in response.cookies.items():
-        if key.startswith('download_warning'):
-            return value
-    return None
-
-def download_csv_from_google_drive(file_id):
-    """
-    Downloads the file from Google Drive, handling the confirmation token if needed.
-    Returns the CSV content as a string.
-    """
-    URL = "https://docs.google.com/uc?export=download"
-    session = requests.Session()
-    response = session.get(URL, params={'id': file_id}, stream=True)
-    token = get_confirm_token(response)
-    if token:
-        params = {'id': file_id, 'confirm': token}
-        response = session.get(URL, params=params, stream=True)
-    return response.content.decode('utf-8')
-
-def get_file_id_from_url(file_url):
-    """
-    Extracts the file id from a Google Drive file URL.
-    """
-    match = re.search(r'id=([^&]+)', file_url)
-    if match:
-        return match.group(1)
-    return None
+@st.cache_data(show_spinner=False)
+def load_csv(file_path):
+    try:
+        # Read CSV with date parsing (expects the header "DATE" exactly)
+        data = pd.read_csv(file_path, parse_dates=['DATE'], low_memory=False)
+        return data
+    except Exception as e:
+        st.error("Error loading CSV: " + str(e))
+        return None
 
 # -----------------------------------------------------------------------------
 # Helper to capture printed output from functions
 # -----------------------------------------------------------------------------
 def capture_print_output(func, *args, **kwargs):
+    import io
     buffer = io.StringIO()
     with contextlib.redirect_stdout(buffer):
         func(*args, **kwargs)
     return buffer.getvalue()
 
 # -----------------------------------------------------------------------------
-# Analysis Functions
+# Analysis Functions (same as before)
 # -----------------------------------------------------------------------------
 def calculate_donchian_channels(df, window=20):
-    """Compute Donchian Channels."""
     df['upper_channel'] = df['HIGH_PRICE'].rolling(window=window, min_periods=1).max()
     df['lower_channel'] = df['LOW_PRICE'].rolling(window=window, min_periods=1).min()
     df['channel_width'] = df['upper_channel'] - df['lower_channel']
@@ -66,17 +43,6 @@ def calculate_additional_indicators(df,
                                     macd_fast=12, macd_slow=26, macd_signal_period=9,
                                     stoch_period=14, stoch_smooth=3,
                                     adx_period=14):
-    """
-    Compute additional indicators:
-      - RSI (14-day)
-      - Moving Averages (for each period in ma_periods)
-      - ATR (14-day)
-      - Bollinger Bands (20-day)
-      - MACD (using macd_fast, macd_slow, macd_signal_period)
-      - Stochastic Oscillator (using stoch_period and stoch_smooth)
-      - OBV (if VOLUME exists)
-      - ADX (using adx_period)
-    """
     # RSI
     delta = df['CLOSE_PRICE'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
@@ -149,12 +115,7 @@ def generate_signals(df,
                      use_macd=False,
                      use_adx=False, adx_threshold=25,
                      use_stoch=False):
-    """
-    Generate trade signals based on Donchian Channel breakout.
-    Extra filters cancel signals if conditions are not met.
-    """
     df['signal'] = 0
-    # Base signal: Donchian Channel Breakout
     df.loc[(df['CLOSE_PRICE'] > df['upper_channel'].shift(1)) &
            (df['CLOSE_PRICE'].shift(1) <= df['upper_channel'].shift(1)), 'signal'] = 1
     df.loc[(df['CLOSE_PRICE'] < df['lower_channel'].shift(1)) &
@@ -182,9 +143,6 @@ def generate_signals(df,
     return df
 
 def backtest_strategy(df):
-    """
-    Calculate strategy returns and track trades.
-    """
     df['returns'] = df['CLOSE_PRICE'].pct_change()
     df['strategy_returns'] = df['returns'] * df['signal'].shift(1)
     
@@ -213,9 +171,6 @@ def backtest_strategy(df):
     return df, trades
 
 def calculate_performance_metrics(cumulative_returns, strategy_data, trades):
-    """
-    Compute key performance metrics.
-    """
     start_date = cumulative_returns.index[0].date()
     end_date = cumulative_returns.index[-1].date()
     total_return = cumulative_returns.iloc[-1]
@@ -248,9 +203,6 @@ def calculate_performance_metrics(cumulative_returns, strategy_data, trades):
     }
 
 def analyze_drawdowns(cumulative_returns):
-    """
-    Compute drawdown metrics.
-    """
     running_max = cumulative_returns.cummax()
     drawdown = (cumulative_returns - running_max) / running_max
     drawdown_info = []
@@ -299,9 +251,6 @@ def analyze_drawdowns(cumulative_returns):
     return drawdown_info
 
 def analyze_returns(cumulative_returns, strategy_returns):
-    """
-    Compute returns analysis and return both a figure and a dictionary of key metrics.
-    """
     print("\n--- Detailed Returns Analysis ---")
     total_return = cumulative_returns.iloc[-1]
     start_date = cumulative_returns.index[0].date()
@@ -335,14 +284,12 @@ def analyze_returns(cumulative_returns, strategy_returns):
     print(yearly_returns.describe())
     
     fig = plt.figure(figsize=(15, 10))
-    # Daily Returns Distribution
     plt.subplot(2, 2, 1)
     daily_returns.hist(bins=50, edgecolor='black')
     plt.title('Daily Returns Distribution')
     plt.xlabel('Daily Returns')
     plt.ylabel('Frequency')
     
-    # Monthly Returns (display selected tick labels)
     ax2 = plt.subplot(2, 2, 2)
     monthly_returns.plot(kind='bar', ax=ax2)
     ax2.set_title('Monthly Returns')
@@ -358,14 +305,12 @@ def analyze_returns(cumulative_returns, strategy_returns):
     ax2.set_xticklabels(visible_labels)
     plt.xticks(rotation=45)
     
-    # Cumulative Returns
     plt.subplot(2, 2, 3)
     cumulative_returns.plot()
     plt.title('Cumulative Returns')
     plt.xlabel('Date')
     plt.ylabel('Cumulative Returns')
     
-    # 30-Day Rolling Returns
     plt.subplot(2, 2, 4)
     rolling_returns = daily_returns.rolling(window=30).mean()
     rolling_returns.plot()
@@ -391,9 +336,6 @@ def analyze_returns(cumulative_returns, strategy_returns):
     return fig, returns_metrics
 
 def print_detailed_trade_analysis(trades):
-    """
-    Print detailed trade analysis.
-    """
     print("\n--- Detailed Trade Analysis ---")
     total_trades = len(trades)
     winning_trades = [t for t in trades if t['trade_return'] > 0]
@@ -415,9 +357,6 @@ def print_detailed_trade_analysis(trades):
         print(f"Type: {trade['trade_type']}, Entry: {trade['entry_date'].date()}, Exit: {trade['exit_date'].date()}, Return: {trade['trade_return']*100:.2f}%, Duration: {trade['trade_duration']} days")
 
 def print_detailed_drawdown_analysis(drawdown_info):
-    """
-    Print detailed drawdown analysis.
-    """
     print("\n--- Detailed Drawdown Analysis ---")
     total_drawdowns = len(drawdown_info)
     print(f"Total Number of Drawdowns: {total_drawdowns}")
@@ -445,9 +384,6 @@ def print_detailed_drawdown_analysis(drawdown_info):
         print("No drawdowns identified")
 
 def visualize_drawdowns(cumulative_returns, drawdown_info):
-    """
-    Create drawdown visualizations.
-    """
     running_max = cumulative_returns.cummax()
     drawdown_series = (cumulative_returns - running_max) / running_max
     fig = plt.figure(figsize=(15, 10))
@@ -493,7 +429,7 @@ def visualize_drawdowns(cumulative_returns, drawdown_info):
     plt.tight_layout()
     return fig
 
-def comprehensive_stock_analysis(ticker_symbol, file_url,
+def comprehensive_stock_analysis(ticker_symbol, file_path,
                                  use_rsi=False, rsi_threshold=50,
                                  use_ma=False, ma_long=50, ma_short=200,
                                  use_macd=False,
@@ -502,39 +438,18 @@ def comprehensive_stock_analysis(ticker_symbol, file_url,
                                  macd_fast=12, macd_slow=26, macd_signal_period=9,
                                  stoch_period=14, stoch_smooth=3,
                                  adx_period=14):
-    """
-    Perform comprehensive analysis for the given ticker.
-    """
     try:
-        # Extract file ID from the URL
-        file_id = get_file_id_from_url(file_url)
-        if not file_id:
-            st.error("Could not extract file ID from the provided URL.")
+        data = load_csv(file_path)
+        if data is None:
             return {}
-        csv_content = download_csv_from_google_drive(file_id)
-        # Debug: Check if content looks like HTML instead of CSV
-        if "<html" in csv_content.lower():
-            st.error("Downloaded content appears to be HTML, not CSV. Check your file sharing settings or file size.")
-            return {}
-        # Create a StringIO object from the CSV content
-        csv_data = io.StringIO(csv_content)
-        # Read the header to verify the CSV includes the "DATE" column
-        header_line = csv_data.readline()
-        if "DATE" not in header_line:
-            st.error("Downloaded CSV header does not contain 'DATE'. Header found: " + header_line)
-            return {}
-        # Reset the pointer and read CSV with date parsing
-        csv_data.seek(0)
-        data = pd.read_csv(csv_data, parse_dates=['DATE'], low_memory=False)
     except Exception as e:
-        st.error("Error loading data from Google Drive: " + str(e))
+        st.error("Error loading data: " + str(e))
         return {}
     
-    # Filter data for the specified ticker symbol and set DATE as index
+    # Filter for the ticker and set DATE as index
     ticker_data = data[data['SYMBOL'] == ticker_symbol].set_index('DATE')
     ticker_data.sort_index(ascending=True, inplace=True)
     
-    # Compute Donchian channels and additional indicators
     ticker_data = calculate_donchian_channels(ticker_data, window=20)
     ma_periods = [ma_long, ma_short] if use_ma else [50, 200]
     ticker_data = calculate_additional_indicators(ticker_data, 
@@ -582,9 +497,8 @@ def comprehensive_stock_analysis(ticker_symbol, file_url,
     plt.ylabel('Channel Width (%)')
     
     plt.tight_layout()
-    fig_main_out = fig_main  # Capture main figure
+    fig_main_out = fig_main
     
-    # Additional Analyses
     returns_fig, returns_metrics = analyze_returns(cumulative_returns, ticker_data['strategy_returns'])
     returns_analysis_text = capture_print_output(analyze_returns, cumulative_returns, ticker_data['strategy_returns'])
     
@@ -618,7 +532,6 @@ def comprehensive_stock_analysis(ticker_symbol, file_url,
 st.set_page_config(page_title="Donchian Channel Breakout: Detailed Drawdown & Advanced Indicator Suite", layout="wide")
 st.title("Donchian Channel Breakout: Detailed Drawdown & Advanced Indicator Suite")
 
-# Sidebar: Ticker and Indicator Filter Inputs
 st.sidebar.write("`Created by:`")
 linkedin_url = "https://www.linkedin.com/in/jeevanba273/"
 st.sidebar.markdown(
@@ -628,9 +541,8 @@ st.sidebar.markdown(
     unsafe_allow_html=True
 )
 
-# Use Google Drive for the data file
-file_id = "1F63GUlODaf8Y9Sl80AHX5SIDlKqG1erY"  # Replace with your actual Google Drive file ID
-FILE_URL = f"https://drive.google.com/uc?export=download&id={file_id}"
+# Set the file path to your dataset in the project folder
+FILE_PATH = "data/final_adjusted_stock_data.csv"
 
 ticker_symbol = st.sidebar.text_input("Enter Ticker Symbol", value="NIFTY 50")
 
@@ -672,7 +584,7 @@ if st.sidebar.button("Run Analysis"):
     with st.spinner("Performing analysis..."):
         results = comprehensive_stock_analysis(
             ticker_symbol, 
-            FILE_URL, 
+            FILE_PATH, 
             use_rsi=use_rsi_filter, 
             rsi_threshold=rsi_threshold, 
             use_ma=use_ma_filter, 
@@ -687,7 +599,6 @@ if st.sidebar.button("Run Analysis"):
             adx_period=adx_period
         )
     
-    # Create tabs for output
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "Overview", 
         "Ticker Data", 
