@@ -535,11 +535,12 @@ st.title("Donchian Channel Breakout: Detailed Drawdown & Advanced Indicator Suit
 st.sidebar.write("`Created by:`")
 linkedin_url = "https://www.linkedin.com/in/jeevanba273/"
 st.sidebar.markdown(
-    f'<a href="{linkedin_url}" target="_blank" style="text-decoration: none; color: white;">'
-    f'<img src="https://cdn-icons-png.flaticon.com/512/174/174857.png" width="25" height="25" style="vertical-align: middle; margin-right: 10px;">'
+    f'<a href="{linkedin_url}" target="_blank" style="text-decoration: none; color: black;">'
+    f'<img src="assets/linkedin_icon.png" width="25" height="25" style="vertical-align: middle; margin-right: 10px;">'
     f'`JEEVAN B A`</a>',
     unsafe_allow_html=True
 )
+
 
 # Set the file path to your dataset in the project folder
 FILE_PATH = "data/final_adjusted_stock_data.csv"
