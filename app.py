@@ -529,8 +529,8 @@ def comprehensive_stock_analysis(ticker_symbol, file_path,
 # -----------------------------------------------------------------------------
 # Main Streamlit App Code
 # -----------------------------------------------------------------------------
-st.set_page_config(page_title="Donchian Channel Breakout: Detailed Drawdown & Advanced Indicator Suite", layout="wide")
-st.title("Donchian Channel Breakout: Detailed Drawdown & Advanced Indicator Suite")
+st.set_page_config(page_title="Donchian Channel Breakout Strategy with Detailed Drawdown & Advanced Indicator Suite", layout="wide")
+st.title("Donchian Channel Breakout Strategy with Detailed Drawdown & Advanced Indicator Suite")
 
 st.sidebar.write("Created by:")
 linkedin_url = "https://www.linkedin.com/in/jeevanba273/"
