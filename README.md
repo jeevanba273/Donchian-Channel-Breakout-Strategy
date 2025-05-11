@@ -3,7 +3,7 @@
 *Donchian Channel Breakout: Detailed Drawdown & Advanced Indicator Suite* is an advanced quantitative trading dashboard built with Streamlit. It implements a classic Donchian Channel breakout strategy enriched with detailed drawdown analytics and a suite of advanced technical indicators. Users can dynamically enable and configure extra trade filters (RSI, Moving Averages, MACD, ADX, and Stochastic Oscillator) via the sidebar to tailor the strategy to their needs.
 
 > *Live Demo:*  
-> Check out the live app on [Streamlit Community Cloud](https://donchian-channel-breakout-strategy.streamlit.app/).
+> Check out the live app on [Donchian Channel Breakout Strategy App](https://donchian-channel-breakout-strategy.streamlit.app/).
 
 ---
 
