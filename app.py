@@ -4,6 +4,20 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import stats
 import contextlib
+import base64
+
+
+# -----------------------------------------------------------------------------
+# Helper Function: Convert local image to base64
+# -----------------------------------------------------------------------------
+def get_base64_image(image_path):
+    """Convert local image to base64 string for embedding in HTML"""
+    try:
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    except Exception as e:
+        st.error(f"Could not load image: {image_path}")
+        return None
 
 # -----------------------------------------------------------------------------
 # Helper Function: Load CSV from Local File Path with Caching
@@ -532,14 +546,34 @@ def comprehensive_stock_analysis(ticker_symbol, file_path,
 st.set_page_config(page_title="Donchian Channel Breakout: Detailed Drawdown & Advanced Indicator Suite", layout="wide")
 st.title("Donchian Channel Breakout: Detailed Drawdown & Advanced Indicator Suite")
 
-st.sidebar.write("`Created by:`")
+st.sidebar.write("Created by:")
 linkedin_url = "https://www.linkedin.com/in/jeevanba273/"
-st.sidebar.markdown(
-    f'<a href="{linkedin_url}" target="_blank" style="text-decoration: none; color: black;">'
-    f'<img src="assets/linkedin_icon.png" width="25" height="25" style="vertical-align: middle; margin-right: 10px;">'
-    f'`JEEVAN B A`</a>',
-    unsafe_allow_html=True
-)
+
+# Get base64 encoded image
+img_base64 = get_base64_image("assets/linkedin_icon.png")
+
+if img_base64:
+    st.sidebar.markdown(
+        f'''
+        <a href="{linkedin_url}" target="_blank" style="text-decoration: none; display: flex; align-items: center; margin-top: 5px;">
+            <img src="data:image/png;base64,{img_base64}" 
+                 width="25" height="25" style="margin-right: 10px;">
+            <span style="color: #1e90ff; font-weight: bold; font-size: 16px;">JEEVAN B A</span>
+        </a>
+        ''',
+        unsafe_allow_html=True
+    )
+else:
+    # Fallback if image doesn't load
+    st.sidebar.markdown(
+        f'''
+        <a href="{linkedin_url}" target="_blank" 
+           style="text-decoration: none; color: #1e90ff; font-weight: bold; font-size: 16px;">
+           🔗 JEEVAN B A
+        </a>
+        ''',
+        unsafe_allow_html=True
+    )
 
 
 # Set the file path to your dataset in the project folder
